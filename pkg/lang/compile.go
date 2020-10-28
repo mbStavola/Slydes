@@ -143,6 +143,26 @@ func (comp DefaultCompiler) Compile(statements []Statement) (types.Show, error) 
 
 					block.Style.Color = c
 				}
+
+				break
+			case "fontSize":
+				switch value := attribute.value.(type) {
+				case VariableReference:
+					size, ok := variables[value.reference].(uint8)
+					if !ok {
+						return show, tokenErrorInfo(statement.token, "Font size attribute must be an integer")
+					}
+
+					block.Style.Size = size
+
+					break
+				case uint8:
+					block.Style.Size = value
+
+					break
+				default:
+					return show, tokenErrorInfo(statement.token, "Font size attribute must be an integer")
+				}
 			}
 		}
 	}

@@ -56,6 +56,7 @@ func NewBlock() Block {
 type Style struct {
 	Color         color.Color
 	Font          string
+	Size          uint8
 	Justification Justification
 }
 
@@ -63,5 +64,6 @@ func NewStyle() Style {
 	return Style{
 		Color: color.Black,
 		Font:  "Times New Roman",
+		Size:  12,
 	}
 }
