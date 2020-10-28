@@ -4,15 +4,15 @@ import (
 	"flag"
 	"fmt"
 	"github.com/mbStavola/slydes/pkg/lang"
-	"github.com/mbStavola/slydes/pkg/render/html"
-	"github.com/mbStavola/slydes/pkg/render/native"
+	"github.com/mbStavola/slydes/render/html"
+	"github.com/mbStavola/slydes/render/native"
 	"os"
 	"strings"
 )
 
 func main() {
 	filename := flag.String("file", "", "slide to open")
-	output := flag.String("out", "native", "method of display (native, html)")
+	output := flag.String("out", "html", "method of display (html, native)")
 	debug := flag.Bool("debug", false, "print debug info")
 
 	flag.Parse()
@@ -48,11 +48,15 @@ func main() {
 
 	switch *output {
 	case "native":
-		native.Render(show)
+		if err := native.Render(show); err != nil {
+			fmt.Print(err)
+		}
 
 		break
 	case "html":
-		html.Render(show)
+		if err := html.Render(show); err != nil {
+			fmt.Print(err)
+		}
 
 		break
 	}

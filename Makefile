@@ -5,4 +5,4 @@ build:
     go build -o slydes main.go debug.go
 
 test:
-    go test ./...
+    go test ./... -count=1

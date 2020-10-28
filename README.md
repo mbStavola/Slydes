@@ -2,7 +2,7 @@
 
 A handy little tool to make slideshow presentations using a textual format.
 
-Eventually this will display in a native client or allow exports to HTML, PDF, or (hopefully) PPT.
+Eventually this will display in a native client or allow exports to HTML, PDF, and (hopefully) PPT.
 
 ## Prerequisites
 
