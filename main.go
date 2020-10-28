@@ -12,7 +12,8 @@ import (
 
 func main() {
 	filename := flag.String("file", "", "slide to open")
-	output := flag.String("out", "native", "method of display (native, html, debug)")
+	output := flag.String("out", "native", "method of display (native, html)")
+	debug := flag.Bool("debug", false, "print debug info")
 
 	flag.Parse()
 
@@ -22,7 +23,7 @@ func main() {
 	} else if !strings.HasSuffix(*filename, ".sly") {
 		fmt.Print("Only .sly files are supported")
 		return
-	} else if *output != "native" && *output != "html" && *output != "debug" {
+	} else if *output != "native" && *output != "html" {
 		fmt.Print("Output must be either native or html")
 		return
 	}
@@ -35,7 +36,7 @@ func main() {
 	defer file.Close()
 
 	sly := lang.NewSly()
-	if *output == "debug" {
+	if *debug {
 		sly = debugSly(sly)
 	}
 

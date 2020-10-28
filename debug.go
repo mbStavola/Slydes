@@ -26,8 +26,10 @@ func (l debugLexer) Lex(reader io.Reader) ([]lang.Token, error) {
 		return tokens, err
 	}
 
-	fmt.Printf("Lexing Stage: %v\n", tokens)
 	fmt.Println("==================================")
+	fmt.Println("Lexing Stage")
+	fmt.Println("==================================")
+	fmt.Printf("%v\n\n", tokens)
 
 	return tokens, nil
 }
@@ -42,8 +44,10 @@ func (p debugParser) Parse(tokens []lang.Token) ([]lang.Statement, error) {
 		return statements, err
 	}
 
-	fmt.Printf("Parsing Stage: %v\n", statements)
 	fmt.Println("==================================")
+	fmt.Println("Parsing Stage")
+	fmt.Println("==================================")
+	fmt.Printf("%v\n\n", statements)
 
 	return statements, nil
 }
@@ -58,8 +62,10 @@ func (c debugCompiler) Compile(statements []lang.Statement) (types.Show, error) 
 		return show, err
 	}
 
-	fmt.Printf("Compilation Stage: %v\n", show)
 	fmt.Println("==================================")
+	fmt.Println("Compilation Stage")
+	fmt.Println("==================================")
+	fmt.Printf("%v\n\n", show)
 
 	return show, nil
 }
