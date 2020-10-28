@@ -12,7 +12,7 @@ Eventually this will display in a native client or allow exports to HTML, PDF, o
 ## Usage
 
 - Clone this repo
-- Run make build
+- Run `make build`
 - `chmod +x ./slydes`
 - `slydes -h`
 
