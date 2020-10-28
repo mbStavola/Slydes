@@ -47,6 +47,8 @@ There is also a fixed set of attributes which you can define. They are as follow
     - the font of a text block. Must be a string value.
 - fontColor
     - the font color of a text block. Can be either the name of a color (ex: "black") or a color literal.
+- fontSize
+    - the font size of a text block. Must be an integer value.
 - justify
     - the justification for a text block. Accepted values are "left", "center", or "right".
     

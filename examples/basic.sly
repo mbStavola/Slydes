@@ -18,6 +18,7 @@ tealBlue = (78, 205, 196);
 @backgroundColor = coolGray;
 
 @font = "Fira Code";
+@fontSize = 42;
 @fontColor = tealBlue;
 @justify = "center";
 
@@ -29,6 +30,7 @@ This is an example of Slydes
 
 [First Slide]
 @font = "Fira Code";
+@fontSize = 42;
 @fontColor = tealBlue;
 @justify = "center";
 
@@ -39,6 +41,7 @@ Title Text
 [[Body - Point 1]]
 @justify = "left";
 @font = "Times New Roman";
+@fontSize = 32;
 @fontColor = paleGreen;
 
 ---
@@ -46,9 +49,6 @@ Title Text
 ---
 
 [[Body - Point 2]]
-@justify = "left";
-@font = "Times New Roman";
-@fontColor = paleGreen;
 
 ---
 - This is my second point
