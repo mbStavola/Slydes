@@ -1,4 +1,4 @@
-package slydes
+package main
 
 import (
 	"flag"
@@ -11,9 +11,10 @@ import (
 )
 
 func main() {
-	flag.Parse()
 	filename := flag.String("file", "", "slide to open")
 	output := flag.String("out", "native", "method of display (native, html)")
+
+	flag.Parse()
 
 	if *filename == "" {
 		fmt.Print("Filename must be provided")

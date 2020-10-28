@@ -28,12 +28,13 @@ func TestAttributeAssignment(t *testing.T) {
 		return
 	}
 
-	if len(show.Slides) != 1 {
-		t.Errorf("Expected exactly one slide-- got %d", len(show.Slides))
+	if len(show.Slides) != 2 {
+		t.Errorf("Expected exactly two slides-- got %d", len(show.Slides))
 		return
 	}
 
-	slide := show.Slides[0]
+	// Skip title slide
+	slide := show.Slides[1]
 	if slide.Background != color.Black {
 		t.Errorf("Expected black background-- got %s", slide.Background)
 	}
