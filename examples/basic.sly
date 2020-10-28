@@ -1,0 +1,55 @@
+# This is a proof of concept presentation file
+# for the Sly markup language
+#
+# The goal for this project is to produce working
+# slideshows from textual formats
+#
+# Using slydes, the Sly processing tool, this presentation
+# can be viewed either in a native client or exported as
+# either HTML, PDF, or (eventually) PPT
+
+# Setup our color palette
+coolGray = (26, 83, 92);
+paleGreen = (247, 255, 247);
+tealBlue = (78, 205, 196);
+
+# Set the default styles for the rest
+# of the presentation
+@backgroundColor = coolGray;
+
+@font = "Fira Code";
+@fontColor = tealBlue;
+@justify = "center";
+
+---
+Welcome!
+
+This is an example of Slydes
+---
+
+[First Slide]
+@font = "Fira Code";
+@fontColor = tealBlue;
+@justify = "center";
+
+---
+Title Text
+---
+
+[[Body - Point 1]]
+@justify = "left";
+@font = "Times New Roman";
+@fontColor = paleGreen;
+
+---
+- This is my first point
+---
+
+[[Body - Point 2]]
+@justify = "left";
+@font = "Times New Roman";
+@fontColor = paleGreen;
+
+---
+- This is my second point
+---

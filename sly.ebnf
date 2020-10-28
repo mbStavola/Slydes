@@ -1,0 +1,17 @@
+declaration ::= slide_scope | sub_scope | statement | text
+
+slide_scope ::= '['  ']'
+sub_scope ::= '[' slide_scope  ']'
+
+statement ::= '@'? ident '=' value ';'
+
+ident ::= [a-zA-Z][a-ZA-Z0-9]*
+
+value ::= string | number | color | ident
+string ::= '"' '"'
+number ::= integer | decimal
+integer ::= '0' | [1-9][0-9]*
+decimal ::= integer '.' integer+
+color ::= '(' number ',' number ',' number (',' number)?  ','? ')'
+
+text ::= '---'  '---'
