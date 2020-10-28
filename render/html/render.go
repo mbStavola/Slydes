@@ -16,7 +16,7 @@ func Render(show types.Show) error {
 		"style": func(style types.Style) template.CSS {
 			fontColor := fontColorStyle(style.Color)
 			styleText := fmt.Sprintf(
-				"font-size: %d; font: %s; text-align: %s; color: %s;",
+				"font-size: %dpx; font-family: %s; text-align: %s; color: %s;",
 				style.Size,
 				style.Font,
 				style.Justification,
@@ -32,7 +32,7 @@ func Render(show types.Show) error {
 		<div class="slide hide" id="slide-{{ $i }}" style="background-color: {{ color $slide.Background }};">
 			{{range $j, $block := $slide.Blocks}}
 				<div class="block" id="slide-{{ $i }}-block-{{ $j }}" style="{{ style $block.Style }}">
-					{{ $block.Words }}
+					<span>{{ $block.Words }}</span>
 				</div>
 			{{end}}
         </div>
@@ -50,6 +50,10 @@ func Render(show types.Show) error {
 		width: 100%;
 		height: 100%;
 		padding: 2em;
+	}
+
+	.block > * {
+		white-space: pre-line;
 	}
 
 	.hide {
