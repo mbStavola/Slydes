@@ -118,3 +118,35 @@ Boo!
 ```
 
 Like slide scopes, the title text not used in processing.
+
+## Macros
+
+To cut down on repetition, Sly provides macro functionality.
+
+```
+green = (0, 255, 0);
+
+$themeMacro = {
+    foo = "hello";
+    @font = "Fira Code";
+
+    # Can refer to outside variables
+    @fontColor = green;
+
+    # Variables only need to be instantiated
+    # by the time the macro is called, not when
+    # it is defined
+    @fontSize = defaultFontSize;
+};
+
+[Example Section]
+defaultFontSize = 14;
+
+# Will expand to the statement block originally
+# defined in the macro
+$themeMacro()
+```
+
+Macros are very basic in Sly. When called they simply expand to the statement block originally provided.
+
+There is no concept of scope within a macro as each macro expansion is inlined.

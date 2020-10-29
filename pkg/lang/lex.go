@@ -18,8 +18,11 @@ const (
 	// Single Character
 	LeftParen
 	RightParen
+	LeftBrace
+	RightBrace
 	Semicolon
 	AtSign
+	DollarSign
 	EqualSign
 	Comma
 
@@ -42,8 +45,11 @@ func (t TokenType) String() string {
 
 		"LeftParen",
 		"RightParen",
+		"LeftBrace",
+		"RightBrace",
 		"Semicolon",
 		"AtSign",
+		"DollarSign",
 		"EqualSign",
 		"Comma",
 
@@ -143,9 +149,33 @@ func (lex DefaultLexer) Lex(reader io.Reader) ([]Token, error) {
 			})
 
 			break
+		case '{':
+			tokens = append(tokens, Token{
+				Type:   LeftBrace,
+				line:   line,
+				lexeme: char,
+			})
+
+			break
+		case '}':
+			tokens = append(tokens, Token{
+				Type:   RightBrace,
+				line:   line,
+				lexeme: char,
+			})
+
+			break
 		case '@':
 			tokens = append(tokens, Token{
 				Type:   AtSign,
+				line:   line,
+				lexeme: char,
+			})
+
+			break
+		case '$':
+			tokens = append(tokens, Token{
+				Type:   DollarSign,
 				line:   line,
 				lexeme: char,
 			})

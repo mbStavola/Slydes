@@ -12,8 +12,11 @@ const (
 
 	VariableAssignment
 	AttributeAssignment
+	MacroAssignment
 
 	WordBlock
+
+	MacroCall
 )
 
 func (s StatementType) String() string {
@@ -25,8 +28,10 @@ func (s StatementType) String() string {
 
 		"VariableAssignment",
 		"AttributeAssignment",
+		"MacroAssignment",
 
 		"WordBlock",
+		"MacroCall",
 	}[s]
 }
 
@@ -46,7 +51,16 @@ type AttributeStatement struct {
 	value interface{}
 }
 
+type MacroStatement struct {
+	name       string
+	statements []Statement
+}
+
 type VariableReference struct {
+	reference string
+}
+
+type MacroInvocation struct {
 	reference string
 }
 
@@ -119,29 +133,74 @@ func assignment(muncher *tokenMuncher) (Statement, error) {
 	if token.Type == AtSign {
 		ty = AttributeAssignment
 		muncher.eat()
+	} else if token.Type == DollarSign {
+		ty = MacroAssignment
+		muncher.eat()
 	}
 
 	if muncher.eatIf(Identifier) {
 		identToken := muncher.previous()
+
+		// Macro call
+		if ty == MacroAssignment && muncher.eatIf(LeftParen) {
+			if _, err := muncher.tryEat(RightParen); err != nil {
+				return Statement{}, err
+			}
+			if _, err := muncher.tryEat(Semicolon); err != nil {
+				return Statement{}, err
+			}
+
+			return Statement{
+				Type:  MacroCall,
+				token: token,
+				data: MacroInvocation{
+					reference: identToken.data.(string),
+				},
+			}, nil
+		}
+
 		if _, err := muncher.tryEat(EqualSign); err != nil {
 			return Statement{}, err
 		}
 
-		value, err := colorLiteral(muncher)
-		if err != nil {
-			return Statement{}, err
-		}
-
 		var data interface{}
-		if ty == VariableAssignment {
-			data = VariableStatement{
-				name:  identToken.data.(string),
-				value: value,
+		if ty == MacroAssignment {
+			if _, err := muncher.tryEat(LeftBrace); err != nil {
+				return Statement{}, err
+			}
+
+			statements := make([]Statement, 0)
+			for !muncher.check(RightBrace) {
+				statement, err := declaration(muncher)
+				if err != nil {
+					return Statement{}, err
+				}
+				statements = append(statements, statement)
+			}
+
+			// Eat closing brace
+			muncher.eat()
+
+			data = MacroStatement{
+				name:       identToken.data.(string),
+				statements: statements,
 			}
 		} else {
-			data = AttributeStatement{
-				name:  identToken.data.(string),
-				value: value,
+			value, err := colorLiteral(muncher)
+			if err != nil {
+				return Statement{}, err
+			}
+
+			if ty == VariableAssignment {
+				data = VariableStatement{
+					name:  identToken.data.(string),
+					value: value,
+				}
+			} else {
+				data = AttributeStatement{
+					name:  identToken.data.(string),
+					value: value,
+				}
 			}
 		}
 
