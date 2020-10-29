@@ -17,160 +17,213 @@ func NewDefaultCompiler() DefaultCompiler {
 }
 
 func (comp DefaultCompiler) Compile(statements []Statement) (types.Show, error) {
+	state := newCompilationState()
+
+	for _, statement := range statements {
+		if err := state.processStatement(statement); err != nil {
+			return types.Show{}, err
+		}
+	}
+
+	return state.finalizeCompilation(), nil
+}
+
+type compilationState struct {
+	show      types.Show
+	slide     types.Slide
+	block     types.Block
+	variables map[string]interface{}
+	macros    map[string][]Statement
+}
+
+func newCompilationState() compilationState {
 	show := types.NewShow()
 	variables := make(map[string]interface{})
+	macros := make(map[string][]Statement)
 
 	var slide = types.NewSlide()
 	var block = types.NewBlock()
 
-	for _, statement := range statements {
-		switch statement.Type {
-		case SlideDecl:
-			slide.Blocks = append(slide.Blocks, block)
-			show.Slides = append(show.Slides, slide)
+	return compilationState{
+		show:      show,
+		slide:     slide,
+		block:     block,
+		variables: variables,
+		macros:    macros,
+	}
+}
 
-			block = types.NewBlock()
-			slide = types.Slide{
-				Background: slide.Background,
-				Blocks:     make([]types.Block, 0),
-			}
+func (cs *compilationState) processStatement(statement Statement) error {
+	switch statement.Type {
+	case SlideDecl:
+		cs.slide.Blocks = append(cs.slide.Blocks, cs.block)
+		cs.show.Slides = append(cs.show.Slides, cs.slide)
+
+		cs.block = types.NewBlock()
+		cs.slide = types.Slide{
+			Background: cs.slide.Background,
+			Blocks:     make([]types.Block, 0),
+		}
+
+		break
+	case ScopeDecl:
+		cs.slide.Blocks = append(cs.slide.Blocks, cs.block)
+
+		// Copy Style from previous block to make things
+		// less tedious when writing multiple blocks
+		cs.block = types.Block{Style: cs.block.Style}
+
+		break
+	case WordBlock:
+		cs.block.Words = statement.data.(string)
+
+		break
+	case VariableAssignment:
+		variable := statement.data.(VariableStatement)
+
+		switch value := variable.value.(type) {
+		case uint8, string, ColorLiteral:
+			cs.variables[variable.name] = value
 
 			break
-		case ScopeDecl:
-			slide.Blocks = append(slide.Blocks, block)
+		case VariableReference:
+			cs.variables[variable.name] = cs.variables[value.reference]
+		}
 
-			// Copy Style from previous block to make things
-			// less tedious when writing multiple blocks
-			block = types.Block{Style: block.Style}
+		break
+	case AttributeAssignment:
+		attribute := statement.data.(AttributeStatement)
 
-			break
-		case WordBlock:
-			block.Words = statement.data.(string)
-
-			break
-		case VariableAssignment:
-			variable := statement.data.(VariableStatement)
-
-			switch value := variable.value.(type) {
-			case uint8, string, ColorLiteral:
-				variables[variable.name] = value
-
-				break
+		switch attribute.name {
+		case "backgroundColor":
+			switch value := attribute.value.(type) {
 			case VariableReference:
-				variables[variable.name] = variables[value.reference]
+				c, err := colorFromLiteral(statement.token, cs.variables[value.reference])
+				if err != nil {
+					return err
+				}
+
+				cs.slide.Background = c
+
+				break
+			default:
+				c, err := colorFromLiteral(statement.token, value)
+				if err != nil {
+					return err
+				}
+
+				cs.slide.Background = c
 			}
 
 			break
-		case AttributeAssignment:
-			attribute := statement.data.(AttributeStatement)
-
-			switch attribute.name {
-			case "backgroundColor":
-				switch value := attribute.value.(type) {
-				case VariableReference:
-					c, err := colorFromLiteral(statement.token, variables[value.reference])
-					if err != nil {
-						return show, err
-					}
-
-					slide.Background = c
-
-					break
-				default:
-					c, err := colorFromLiteral(statement.token, value)
-					if err != nil {
-						return show, err
-					}
-
-					slide.Background = c
+		case "justify":
+			switch value := attribute.value.(type) {
+			case VariableReference:
+				justification, err := justificationFromLiteral(statement.token, cs.variables[value.reference])
+				if err != nil {
+					return err
 				}
 
+				cs.block.Style.Justification = justification
+
 				break
-			case "justify":
-				switch value := attribute.value.(type) {
-				case VariableReference:
-					justification, err := justificationFromLiteral(statement.token, variables[value.reference])
-					if err != nil {
-						return show, err
-					}
+			case string:
+				justification, err := justificationFromLiteral(statement.token, value)
+				if err != nil {
+					return err
+				}
 
-					block.Style.Justification = justification
+				cs.block.Style.Justification = justification
+			}
 
-					break
+			break
+		case "font":
+			switch value := attribute.value.(type) {
+			case VariableReference:
+				val := cs.variables[value.reference]
+				switch val := val.(type) {
 				case string:
-					justification, err := justificationFromLiteral(statement.token, value)
-					if err != nil {
-						return show, err
-					}
-
-					block.Style.Justification = justification
-				}
-
-				break
-			case "font":
-				switch value := attribute.value.(type) {
-				case VariableReference:
-					val := variables[value.reference]
-					switch val := val.(type) {
-					case string:
-						block.Style.Font = val
-					default:
-						return show, tokenErrorInfo(statement.token, "Font attribute must be a string")
-					}
-
-					break
-				case string:
-					block.Style.Font = value
-				}
-
-				break
-			case "fontColor":
-				switch value := attribute.value.(type) {
-				case VariableReference:
-					c, err := colorFromLiteral(statement.token, variables[value.reference])
-					if err != nil {
-						return show, err
-					}
-
-					block.Style.Color = c
-
-					break
+					cs.block.Style.Font = val
 				default:
-					c, err := colorFromLiteral(statement.token, value)
-					if err != nil {
-						return show, err
-					}
-
-					block.Style.Color = c
+					return tokenErrorInfo(statement.token, "Font attribute must be a string")
 				}
 
 				break
-			case "fontSize":
-				switch value := attribute.value.(type) {
-				case VariableReference:
-					size, ok := variables[value.reference].(uint8)
-					if !ok {
-						return show, tokenErrorInfo(statement.token, "Font size attribute must be an integer")
-					}
+			case string:
+				cs.block.Style.Font = value
+			}
 
-					block.Style.Size = size
-
-					break
-				case uint8:
-					block.Style.Size = value
-
-					break
-				default:
-					return show, tokenErrorInfo(statement.token, "Font size attribute must be an integer")
+			break
+		case "fontColor":
+			switch value := attribute.value.(type) {
+			case VariableReference:
+				c, err := colorFromLiteral(statement.token, cs.variables[value.reference])
+				if err != nil {
+					return err
 				}
+
+				cs.block.Style.Color = c
+
+				break
+			default:
+				c, err := colorFromLiteral(statement.token, value)
+				if err != nil {
+					return err
+				}
+
+				cs.block.Style.Color = c
+			}
+
+			break
+		case "fontSize":
+			switch value := attribute.value.(type) {
+			case VariableReference:
+				size, ok := cs.variables[value.reference].(uint8)
+				if !ok {
+					return tokenErrorInfo(statement.token, "Font size attribute must be an integer")
+				}
+
+				cs.block.Style.Size = size
+
+				break
+			case uint8:
+				cs.block.Style.Size = value
+
+				break
+			default:
+				return tokenErrorInfo(statement.token, "Font size attribute must be an integer")
+			}
+		default:
+			return tokenErrorInfo(statement.token, "Unrecognized attribute")
+		}
+
+		break
+	case MacroAssignment:
+		macroDefinition := statement.data.(MacroStatement)
+		cs.macros[macroDefinition.name] = macroDefinition.statements
+
+		break
+	case MacroCall:
+		macroInvocation := statement.data.(MacroInvocation)
+		macro, ok := cs.macros[macroInvocation.reference]
+		if !ok {
+			return tokenErrorInfo(statement.token, "Macro not defined")
+		}
+
+		for _, statement := range macro {
+			if err := cs.processStatement(statement); err != nil {
+				return err
 			}
 		}
 	}
 
-	slide.Blocks = append(slide.Blocks, block)
-	show.Slides = append(show.Slides, slide)
+	return nil
+}
 
-	return show, nil
+func (cs *compilationState) finalizeCompilation() types.Show {
+	cs.slide.Blocks = append(cs.slide.Blocks, cs.block)
+	cs.show.Slides = append(cs.show.Slides, cs.slide)
+	return cs.show
 }
 
 func justificationFromLiteral(token Token, value interface{}) (types.Justification, error) {

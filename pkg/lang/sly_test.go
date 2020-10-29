@@ -51,7 +51,7 @@ Text
 	}
 
 	if len(show.Slides) != 3 {
-		t.Errorf("Expected exactly two slides-- got %d", len(show.Slides))
+		t.Errorf("Expected exactly three slides-- got %d", len(show.Slides))
 		return
 	}
 
@@ -135,5 +135,55 @@ Text
 	lastBlock := secondSlide.Blocks[0]
 	if strings.TrimSpace(lastBlock.Words) != "GoodBye" {
 		t.Errorf("Expected words \"GoodBye\"-- got %s", strings.TrimSpace(lastBlock.Words))
+	}
+}
+
+func TestMacro(t *testing.T) {
+	source := `
+	red = "red";
+	$styleMacro = {
+		@backgroundColor = red;
+		@fontColor = "blue";
+	};
+	
+	---First---
+
+	[Test]
+	$styleMacro();
+
+	---Example---`
+
+	show, err := sly.ReadSlideShowString(source)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	if len(show.Slides) != 2 {
+		t.Errorf("Expected exactly two slides-- got %d", len(show.Slides))
+		return
+	}
+
+	titleSlide := show.Slides[0]
+	titleBlock := titleSlide.Blocks[0]
+	if titleSlide.Background != color.White {
+		r, g, b, a := titleSlide.Background.RGBA()
+		t.Errorf("Expected white background color-- got (%d, %d, %d, %d)", r, g, b, a)
+		return
+	} else if titleBlock.Style.Color != color.Black {
+		r, g, b, a := titleBlock.Style.Color.RGBA()
+		t.Errorf("Expected black font color-- got (%d, %d, %d, %d)", r, g, b, a)
+		return
+	}
+
+	closingSlide := show.Slides[1]
+	closingBlock := closingSlide.Blocks[0]
+	bgColor := closingSlide.Background.(color.RGBA)
+	fontColor := closingBlock.Style.Color.(color.RGBA)
+	if bgColor.R != 255 && bgColor.G != 0 && bgColor.B != 0 && bgColor.A != 255 {
+		t.Errorf("Expected red background color-- got (%d, %d, %d, %d)", bgColor.R, bgColor.G, bgColor.B, bgColor.A)
+		return
+	} else if fontColor.R != 0 && fontColor.G != 0 && fontColor.B != 255 && fontColor.A != 255 {
+		t.Errorf("Expected blue font color-- got (%d, %d, %d, %d)", fontColor.R, fontColor.G, fontColor.B, fontColor.A)
 	}
 }

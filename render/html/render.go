@@ -26,7 +26,15 @@ func Render(show types.Show) error {
 		},
 		"color": fontColorStyle,
 	}
-	slideshow, err := template.New("slideshow").Funcs(helpers).Parse(`
+	slideshow, err := template.New("slideshow").Funcs(helpers).Parse(source)
+	if err != nil {
+		return err
+	}
+
+	return slideshow.Execute(os.Stdout, show)
+}
+
+const source = `
 <div class="content">
     {{range $i, $slide := .Slides}}
 		<div class="slide hide" id="slide-{{ $i }}" style="background-color: {{ color $slide.Background }};">
@@ -100,13 +108,7 @@ func Render(show types.Show) error {
 		show(currentSlide);
 	});
 </script>
-`)
-	if err != nil {
-		return err
-	}
-
-	return slideshow.Execute(os.Stdout, show)
-}
+`
 
 func fontColorStyle(color color.Color) template.CSS {
 	r, g, b, a := color.RGBA()

@@ -17,10 +17,21 @@ tealBlue = (78, 205, 196);
 # of the presentation
 @backgroundColor = coolGray;
 
-@font = "Fira Code";
-@fontSize = 42;
-@fontColor = tealBlue;
-@justify = "center";
+$titleStyle = {
+    @font = "Fira Code";
+    @fontSize = 42;
+    @fontColor = tealBlue;
+    @justify = "center";
+};
+
+$contentStyle = {
+    @justify = "left";
+    @font = "Times New Roman";
+    @fontSize = 32;
+    @fontColor = paleGreen;
+};
+
+$titleStyle();
 
 ---
 Welcome!
@@ -29,20 +40,14 @@ This is an example of Slydes
 ---
 
 [First Slide]
-@font = "Fira Code";
-@fontSize = 42;
-@fontColor = tealBlue;
-@justify = "center";
+$titleStyle();
 
 ---
-Title Text
+These are my thoughts
 ---
 
 [[Body - Point 1]]
-@justify = "left";
-@font = "Times New Roman";
-@fontSize = 32;
-@fontColor = paleGreen;
+$contentStyle();
 
 ---
 - This is my first point
@@ -52,4 +57,45 @@ Title Text
 
 ---
 - This is my second point
+---
+
+[Second Slide]
+$titleStyle();
+
+---
+How about this?
+---
+
+[[Body 1]]
+@justify = "right";
+@font = "Times New Roman";
+@fontSize = 38;
+@fontColor = paleGreen;
+
+---
+
+
+
+
+
+I'm boldly making my point---
+
+[[Body 2]]
+@justify = "center";
+
+---With some style---
+
+[[Body 3]]
+@justify = "left";
+
+---What do you think?---
+
+[Conclusion]
+$titleStyle();
+
+---
+
+
+
+We're through
 ---
