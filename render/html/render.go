@@ -35,14 +35,16 @@ func Render(show types.Show) error {
 }
 
 const source = `
-<div class="content">
+<div class="show">
     {{range $i, $slide := .Slides}}
 		<div class="slide hide" id="slide-{{ $i }}" style="background-color: {{ color $slide.Background }};">
-			{{range $j, $block := $slide.Blocks}}
-				<div class="block" id="slide-{{ $i }}-block-{{ $j }}" style="{{ style $block.Style }}">
-					<span>{{ $block.Words }}</span>
-				</div>
-			{{end}}
+			<div class="content">
+				{{range $j, $block := $slide.Blocks}}
+					<div class="block" id="slide-{{ $i }}-block-{{ $j }}" style="{{ style $block.Style }}">
+						<span>{{ $block.Words }}</span>
+					</div>
+				{{end}}
+			</div>
         </div>
     {{end}}
 </div>
@@ -51,12 +53,17 @@ const source = `
 	body, html {
 		margin: 0;
 		padding: 0;
-		overflow: hidden;
 	}
 
 	.slide {
 		width: 100%;
 		height: 100%;
+	}
+
+	.content {
+		margin: auto;
+		width: 90%;
+		height: 90%;
 		padding: 2em;
 	}
 
