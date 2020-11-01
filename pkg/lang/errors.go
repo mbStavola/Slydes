@@ -1,6 +1,35 @@
 package lang
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
+
+type ErrorInfoBundle struct {
+	errors []ErrorInfo
+}
+
+func newErrorInfoBundle() ErrorInfoBundle {
+	return ErrorInfoBundle{errors: make([]ErrorInfo, 0)}
+}
+
+func (b *ErrorInfoBundle) Add(err ErrorInfo) {
+	b.errors = append(b.errors, err)
+}
+
+func (b ErrorInfoBundle) HasErrors() bool {
+	return len(b.errors) > 0
+}
+
+func (b ErrorInfoBundle) Error() string {
+	builder := strings.Builder{}
+	for _, err := range b.errors {
+		builder.WriteString(err.Error())
+		builder.WriteByte('\n')
+	}
+
+	return builder.String()
+}
 
 type ErrorInfo struct {
 	line     uint

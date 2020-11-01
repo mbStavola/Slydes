@@ -1,9 +1,11 @@
 package lang
 
 import (
+	"errors"
 	"fmt"
-	"github.com/mbStavola/slydes/pkg/types"
 	"image/color"
+
+	"github.com/mbStavola/slydes/pkg/types"
 )
 
 type Compiler interface {
@@ -18,11 +20,18 @@ func NewDefaultCompiler() DefaultCompiler {
 
 func (comp DefaultCompiler) Compile(statements []Statement) (types.Show, error) {
 	state := newCompilationState()
+	errBundle := newErrorInfoBundle()
 
 	for _, statement := range statements {
-		if err := state.processStatement(statement); err != nil {
+		if err := state.processStatement(statement); err != nil && errors.As(err, &ErrorInfo{}) {
+			errBundle.Add(err.(ErrorInfo))
+		} else if err != nil {
 			return types.Show{}, err
 		}
+	}
+
+	if errBundle.HasErrors() {
+		return types.Show{}, errBundle
 	}
 
 	return state.finalizeCompilation(), nil
