@@ -8,12 +8,11 @@ import (
 
 	"github.com/mbStavola/slydes/pkg/lang"
 	"github.com/mbStavola/slydes/render/html"
-	"github.com/mbStavola/slydes/render/native"
 )
 
 func main() {
 	filename := flag.String("file", "", "slide to open")
-	output := flag.String("out", "html", "method of display (html, noop, native)")
+	output := flag.String("out", "noop", "method of display (noop, html)")
 	debug := flag.Bool("debug", false, "print debug info")
 
 	flag.Parse()
@@ -25,7 +24,7 @@ func main() {
 		fmt.Print("Only .sly files are supported")
 		return
 	} else if *output != "native" && *output != "html" && *output != "noop" {
-		fmt.Print("Output must be either html, native, or noop")
+		fmt.Print("Output must be either noop or html")
 		return
 	}
 
@@ -48,16 +47,10 @@ func main() {
 	}
 
 	switch *output {
-	case "html":
-		if err := html.Render(show); err != nil {
-			fmt.Print(err)
-		}
-
-		break
 	case "noop":
 		break
-	case "native":
-		if err := native.Render(show); err != nil {
+	case "html":
+		if err := html.Render(show); err != nil {
 			fmt.Print(err)
 		}
 
