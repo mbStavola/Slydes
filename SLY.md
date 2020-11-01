@@ -11,8 +11,13 @@ Comments start with `#` and ignore the rest of the line
 You can define variables with Sly, the syntax is pretty simple:
 
 ```
-variableName = 1;
+let variableName = 1;
+mut otherVarName = "f";
 ```
+
+A variable declaration is composed of three parts: mutability binding, identifier, and an initial value.
+
+A variable can either be bound as immutable (`let`) or mutable (`mut`). Immutable variables cannot be reassigned after initialization whereas mutables ones can.
 
 The identifier for the variable must start with a letter but can contain any alphanumeric character subsequently.
 
@@ -23,11 +28,13 @@ All variable declarations must end with a semicolon.
 You can use a variable in an attribute declaration or possibly in another variable declaration.
 
 ```
-variable1 = "hello";
-variable2 = variable1;
+let variable1 = "hello";
+let variable2 = variable1;
 ```
 
-Variables are global and are not scoped to slides or blocks. They will be overwritten on reassignment!
+Variables are global and are not scoped to slides or blocks.
+
+Variables may be shadowed by redeclaring them.
 
 ## Attribute Declaration
 

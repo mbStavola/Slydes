@@ -13,6 +13,8 @@ const (
 	SlideDecl
 	ScopeDecl
 
+	VariableDeclaration
+
 	VariableAssignment
 	AttributeAssignment
 	MacroAssignment
@@ -29,6 +31,8 @@ func (s StatementType) String() string {
 		"SlideDecl",
 		"ScopeDecl",
 
+		"VariableDeclaration",
+
 		"VariableAssignment",
 		"AttributeAssignment",
 		"MacroAssignment",
@@ -42,6 +46,12 @@ type Statement struct {
 	Type  StatementType
 	token Token
 	data  interface{}
+}
+
+type VariableDeclStatement struct {
+	name      string
+	isMutable bool
+	value     interface{}
 }
 
 type VariableStatement struct {
@@ -141,10 +151,23 @@ func assignment(muncher *tokenMuncher) (Statement, error) {
 	ty := VariableAssignment
 	token := muncher.peek()
 
-	if token.Type == AtSign {
+	switch token.Type {
+	case Let:
+		ty = VariableDeclaration
+		muncher.eat()
+
+		break
+	case Mut:
+		ty = VariableDeclaration
+		muncher.eat()
+
+		break
+	case AtSign:
 		ty = AttributeAssignment
 		muncher.eat()
-	} else if token.Type == DollarSign {
+
+		break
+	case DollarSign:
 		ty = MacroAssignment
 		muncher.eat()
 	}
@@ -202,7 +225,13 @@ func assignment(muncher *tokenMuncher) (Statement, error) {
 				return Statement{}, err
 			}
 
-			if ty == VariableAssignment {
+			if ty == VariableDeclaration {
+				data = VariableDeclStatement{
+					name:      identToken.data.(string),
+					isMutable: token.Type == Mut,
+					value:     value,
+				}
+			} else if ty == VariableAssignment {
 				data = VariableStatement{
 					name:  identToken.data.(string),
 					value: value,
@@ -227,7 +256,7 @@ func assignment(muncher *tokenMuncher) (Statement, error) {
 	}
 
 	message := fmt.Sprintf("Unexpected token %s", token.Type.String())
-	return Statement{}, tokenErrorInfo(token, message)
+	return Statement{}, tokenErrorInfo(token, parsing, message)
 }
 
 func colorLiteral(muncher *tokenMuncher) (interface{}, error) {
@@ -293,7 +322,7 @@ func value(muncher *tokenMuncher) (interface{}, error) {
 		return VariableReference{reference: token.data.(string)}, nil
 	}
 
-	return nil, tokenErrorInfo(token, "Expected value")
+	return nil, tokenErrorInfo(token, parsing, "Expected value")
 }
 
 func synchronizeFromErrorState(muncher *tokenMuncher) {
@@ -334,7 +363,7 @@ func (tm *tokenMuncher) tryEat(expected TokenType) (Token, error) {
 	}
 
 	message := fmt.Sprintf("Expected %s, but was %s", expected.String(), token.Type.String())
-	return Token{}, tokenErrorInfo(token, message)
+	return Token{}, tokenErrorInfo(token, parsing, message)
 }
 
 func (tm *tokenMuncher) previous() Token {
