@@ -8,6 +8,14 @@ import (
 	"github.com/mbStavola/slydes/pkg/types"
 )
 
+var reservedNames = map[string]bool{
+	"backgroundColor": true,
+	"justify":         true,
+	"font":            true,
+	"fontColor":       true,
+	"fontSize":        true,
+}
+
 type Compiler interface {
 	Compile(statements []Statement) (types.Show, error)
 }
@@ -89,6 +97,9 @@ func (cs *compilationState) processStatement(statement Statement) error {
 		break
 	case VariableDeclaration:
 		variable := statement.data.(VariableDeclStatement)
+		if reservedNames[variable.name] {
+			return tokenErrorInfo(statement.token, compilation, "cannot declare using a reserved name")
+		}
 
 		value := variableValue{isMutable: variable.isMutable}
 
@@ -283,9 +294,13 @@ func (cs *compilationState) processStatement(statement Statement) error {
 }
 
 func (cs *compilationState) dereferenceVariable(token Token, name string) (interface{}, error) {
+	if reservedNames[name] {
+		return nil, tokenErrorInfo(token, compilation, "cannot dereference a reserved name")
+	}
+
 	value, ok := cs.variables[name]
 	if !ok {
-		return nil, tokenErrorInfo(token, compilation, "variable must be initialized before reference")
+		return nil, tokenErrorInfo(token, compilation, "variable must be initialized before dereference")
 	}
 
 	return value.value, nil
