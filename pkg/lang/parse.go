@@ -1,6 +1,9 @@
 package lang
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 type StatementType int
 
@@ -84,14 +87,22 @@ func NewDefaultParser() DefaultParser {
 func (pars DefaultParser) Parse(tokens []Token) ([]Statement, error) {
 	statements := make([]Statement, 0, 1024)
 	muncher := tokenMuncher{tokens: tokens}
+	errBundle := newErrorInfoBundle()
 
 	for !muncher.atEnd() {
 		statement, err := declaration(&muncher)
-		if err != nil {
+		if err != nil && errors.As(err, &ErrorInfo{}) {
+			errBundle.Add(err.(ErrorInfo))
+			synchronizeFromErrorState(&muncher)
+		} else if err != nil {
 			return statements, err
 		}
 
 		statements = append(statements, statement)
+	}
+
+	if errBundle.HasErrors() {
+		return statements, errBundle
 	}
 
 	return statements, nil
@@ -234,11 +245,12 @@ func colorLiteral(muncher *tokenMuncher) (interface{}, error) {
 			}
 
 			// TODO(Matt): We should be able to use variables here
-			if value, err := muncher.tryEat(Integer); err != nil {
+			value, err := muncher.tryEat(Integer)
+			if err != nil {
 				return nil, err
-			} else {
-				values[i] = value.data.(uint8)
 			}
+
+			values[i] = value.data.(uint8)
 		}
 
 		// Allow trailing comma
@@ -282,6 +294,18 @@ func value(muncher *tokenMuncher) (interface{}, error) {
 	}
 
 	return nil, tokenErrorInfo(token, "Expected value")
+}
+
+func synchronizeFromErrorState(muncher *tokenMuncher) {
+	muncher.eat()
+
+	for !muncher.atEnd() {
+		if muncher.previous().Type == Semicolon {
+			return
+		}
+
+		muncher.eat()
+	}
 }
 
 type tokenMuncher struct {
@@ -344,7 +368,7 @@ func (tm *tokenMuncher) check(expected TokenType) bool {
 
 func (tm *tokenMuncher) eat() Token {
 	if !tm.atEnd() {
-		tm.current += 1
+		tm.current++
 	}
 
 	return tm.previous()
