@@ -41,13 +41,13 @@ type compilationState struct {
 	show      types.Show
 	slide     types.Slide
 	block     types.Block
-	variables map[string]interface{}
+	variables map[string]variableValue
 	macros    map[string][]Statement
 }
 
 func newCompilationState() compilationState {
 	show := types.NewShow()
-	variables := make(map[string]interface{})
+	variables := make(map[string]variableValue)
 	macros := make(map[string][]Statement)
 
 	var slide = types.NewSlide()
@@ -87,16 +87,50 @@ func (cs *compilationState) processStatement(statement Statement) error {
 		cs.block.Words = statement.data.(string)
 
 		break
-	case VariableAssignment:
-		variable := statement.data.(VariableStatement)
+	case VariableDeclaration:
+		variable := statement.data.(VariableDeclStatement)
 
-		switch value := variable.value.(type) {
+		value := variableValue{isMutable: variable.isMutable}
+
+		switch data := variable.value.(type) {
 		case uint8, string, ColorLiteral:
-			cs.variables[variable.name] = value
+			value.value = data
 
 			break
 		case VariableReference:
-			cs.variables[variable.name] = cs.variables[value.reference]
+			dereferenced, err := cs.dereferenceVariable(statement.token, data.reference)
+			if err != nil {
+				return err
+			}
+
+			value.value = dereferenced
+		}
+
+		cs.variables[variable.name] = value
+
+		break
+	case VariableAssignment:
+		variable := statement.data.(VariableStatement)
+
+		value, ok := cs.variables[variable.name]
+		if !ok {
+			return tokenErrorInfo(statement.token, compilation, "cannot assign to undeclared variable")
+		} else if !value.isMutable {
+			return tokenErrorInfo(statement.token, compilation, "cannot assign to an immutable binding")
+		}
+
+		switch data := variable.value.(type) {
+		case uint8, string, ColorLiteral:
+			value.value = data
+
+			break
+		case VariableReference:
+			dereferenced, err := cs.dereferenceVariable(statement.token, data.reference)
+			if err != nil {
+				return err
+			}
+
+			value.value = dereferenced
 		}
 
 		break
@@ -107,7 +141,12 @@ func (cs *compilationState) processStatement(statement Statement) error {
 		case "backgroundColor":
 			switch value := attribute.value.(type) {
 			case VariableReference:
-				c, err := colorFromLiteral(statement.token, cs.variables[value.reference])
+				val, err := cs.dereferenceVariable(statement.token, value.reference)
+				if err != nil {
+					return err
+				}
+
+				c, err := colorFromLiteral(statement.token, val)
 				if err != nil {
 					return err
 				}
@@ -149,12 +188,16 @@ func (cs *compilationState) processStatement(statement Statement) error {
 		case "font":
 			switch value := attribute.value.(type) {
 			case VariableReference:
-				val := cs.variables[value.reference]
+				val, err := cs.dereferenceVariable(statement.token, value.reference)
+				if err != nil {
+					return err
+				}
+
 				switch val := val.(type) {
 				case string:
 					cs.block.Style.Font = val
 				default:
-					return tokenErrorInfo(statement.token, "Font attribute must be a string")
+					return tokenErrorInfo(statement.token, compilation, "Font attribute must be a string")
 				}
 
 				break
@@ -166,7 +209,12 @@ func (cs *compilationState) processStatement(statement Statement) error {
 		case "fontColor":
 			switch value := attribute.value.(type) {
 			case VariableReference:
-				c, err := colorFromLiteral(statement.token, cs.variables[value.reference])
+				val, err := cs.dereferenceVariable(statement.token, value.reference)
+				if err != nil {
+					return err
+				}
+
+				c, err := colorFromLiteral(statement.token, val)
 				if err != nil {
 					return err
 				}
@@ -187,9 +235,14 @@ func (cs *compilationState) processStatement(statement Statement) error {
 		case "fontSize":
 			switch value := attribute.value.(type) {
 			case VariableReference:
-				size, ok := cs.variables[value.reference].(uint8)
+				val, err := cs.dereferenceVariable(statement.token, value.reference)
+				if err != nil {
+					return err
+				}
+
+				size, ok := val.(uint8)
 				if !ok {
-					return tokenErrorInfo(statement.token, "Font size attribute must be an integer")
+					return tokenErrorInfo(statement.token, compilation, "Font size attribute must be an integer")
 				}
 
 				cs.block.Style.Size = size
@@ -200,10 +253,10 @@ func (cs *compilationState) processStatement(statement Statement) error {
 
 				break
 			default:
-				return tokenErrorInfo(statement.token, "Font size attribute must be an integer")
+				return tokenErrorInfo(statement.token, compilation, "Font size attribute must be an integer")
 			}
 		default:
-			return tokenErrorInfo(statement.token, "Unrecognized attribute")
+			return tokenErrorInfo(statement.token, compilation, "Unrecognized attribute")
 		}
 
 		break
@@ -216,7 +269,7 @@ func (cs *compilationState) processStatement(statement Statement) error {
 		macroInvocation := statement.data.(MacroInvocation)
 		macro, ok := cs.macros[macroInvocation.reference]
 		if !ok {
-			return tokenErrorInfo(statement.token, "Macro not defined")
+			return tokenErrorInfo(statement.token, compilation, "Macro not defined")
 		}
 
 		for _, statement := range macro {
@@ -229,10 +282,24 @@ func (cs *compilationState) processStatement(statement Statement) error {
 	return nil
 }
 
+func (cs *compilationState) dereferenceVariable(token Token, name string) (interface{}, error) {
+	value, ok := cs.variables[name]
+	if !ok {
+		return nil, tokenErrorInfo(token, compilation, "variable must be initialized before reference")
+	}
+
+	return value.value, nil
+}
+
 func (cs *compilationState) finalizeCompilation() types.Show {
 	cs.slide.Blocks = append(cs.slide.Blocks, cs.block)
 	cs.show.Slides = append(cs.show.Slides, cs.slide)
 	return cs.show
+}
+
+type variableValue struct {
+	isMutable bool
+	value     interface{}
 }
 
 func justificationFromLiteral(token Token, value interface{}) (types.Justification, error) {
@@ -249,7 +316,7 @@ func justificationFromLiteral(token Token, value interface{}) (types.Justificati
 	}
 
 	message := "Justification attribute must be either 'left', 'right', or 'center'"
-	return types.Left, tokenErrorInfo(token, message)
+	return types.Left, tokenErrorInfo(token, compilation, message)
 }
 
 func colorFromLiteral(token Token, value interface{}) (color.Color, error) {
@@ -283,7 +350,7 @@ func colorFromLiteral(token Token, value interface{}) (color.Color, error) {
 			}, nil
 		default:
 			message := fmt.Sprintf("Unsupported color '%s'", value)
-			return nil, tokenErrorInfo(token, message)
+			return nil, tokenErrorInfo(token, compilation, message)
 		}
 	case ColorLiteral:
 		return color.RGBA{
@@ -293,6 +360,7 @@ func colorFromLiteral(token Token, value interface{}) (color.Color, error) {
 			A: value.a,
 		}, nil
 	default:
-		return nil, tokenErrorInfo(token, "Color attribute must be either a tuple or string")
+		fmt.Printf("ff %v\n", value)
+		return nil, tokenErrorInfo(token, compilation, "Color attribute must be either a tuple or string")
 	}
 }

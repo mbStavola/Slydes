@@ -28,6 +28,10 @@ const (
 	EqualSign
 	Comma
 
+	// Keywords
+	Let
+	Mut
+
 	// Special
 	SlideScope
 	SubScope
@@ -55,6 +59,9 @@ func (t TokenType) String() string {
 		"DollarSign",
 		"EqualSign",
 		"Comma",
+
+		"Let",
+		"Mut",
 
 		"SlideScope",
 		"SubScope",
@@ -221,6 +228,38 @@ func processRune(muncher *runeMuncher) (Token, error) {
 			line:   muncher.line,
 			lexeme: char,
 		}, nil
+
+	case 'l':
+		if chars, err := muncher.Peek(2); err == io.EOF {
+			return Token{}, lexemeErrorInfo(muncher.line, char, "Unexpected end of file")
+		} else if err != nil {
+			return Token{}, err
+		} else if string(chars[:]) == "et" {
+			muncher.eatN(2)
+			return Token{
+				Type:   Let,
+				line:   muncher.line,
+				lexeme: char,
+			}, nil
+		}
+
+		// Intentional fallthrough-- this might be an identifier
+
+	case 'm':
+		if chars, err := muncher.Peek(2); err == io.EOF {
+			return Token{}, lexemeErrorInfo(muncher.line, char, "Unexpected end of file")
+		} else if err != nil {
+			return Token{}, err
+		} else if string(chars[:]) == "ut" {
+			muncher.eatN(2)
+			return Token{
+				Type:   Mut,
+				line:   muncher.line,
+				lexeme: char,
+			}, nil
+		}
+
+		// Intentional fallthrough-- this might be an identifier
 
 	case '-':
 		if chars, err := muncher.Peek(2); err == io.EOF {

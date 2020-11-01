@@ -1,10 +1,11 @@
 package lang
 
 import (
-	"github.com/mbStavola/slydes/pkg/types"
 	"image/color"
 	"strings"
 	"testing"
+
+	"github.com/mbStavola/slydes/pkg/types"
 )
 
 var sly = NewSly()
@@ -13,9 +14,9 @@ func TestSimplePresentation(t *testing.T) {
 	source := `
 	# This is a very simple slideshow
 	# Hopefully everything works as intended
-	coolGray = (26, 83, 92);
-	paleGreen = (247, 255, 247,);
-	tealBlue = (78, 205, 196, 255);
+	let coolGray = (26, 83, 92);
+	let paleGreen = (247, 255, 247,);
+	let tealBlue = (78, 205, 196, 255);
 
 	---Welcome!---
 
@@ -140,7 +141,7 @@ Text
 
 func TestMacro(t *testing.T) {
 	source := `
-	red = "red";
+	let red = "red";
 	$styleMacro = {
 		@backgroundColor = red;
 		@fontColor = "blue";

@@ -9,9 +9,9 @@
 # either HTML, PDF, or (eventually) PPT
 
 # Setup our color palette
-coolGray = (26, 83, 92);
-paleGreen = (247, 255, 247);
-tealBlue = (78, 205, 196);
+let coolGray = (26, 83, 92);
+mut paleGreen = (247, 255, 247);
+let tealBlue = (78, 205, 196);
 
 # Set the default styles for the rest
 # of the presentation

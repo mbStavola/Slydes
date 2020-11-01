@@ -34,6 +34,7 @@ func (b ErrorInfoBundle) Error() string {
 type ErrorInfo struct {
 	line     uint
 	location string
+	stage    stage
 	message  string
 }
 
@@ -49,18 +50,31 @@ func lexemeErrorInfo(line uint, lexeme rune, message string) ErrorInfo {
 	return ErrorInfo{
 		line:     line,
 		location: fmt.Sprintf(" at '%c'", lexeme),
+		stage:    lexing,
 		message:  message,
 	}
 }
 
-func tokenErrorInfo(token Token, message string) ErrorInfo {
+func tokenErrorInfo(token Token, stage stage, message string) ErrorInfo {
 	return ErrorInfo{
 		line:     token.line,
 		location: fmt.Sprintf(" at '%c'", token.lexeme),
+		stage:    stage,
 		message:  message,
 	}
 }
 
 func (err ErrorInfo) Error() string {
-	return fmt.Sprintf("[line=%d] Error%s: %s", err.line, err.location, err.message)
+	stage := ""
+	if err.stage != unspecified {
+		stage = fmt.Sprintf(" %s ", err.stage)
+	}
+
+	return fmt.Sprintf(
+		"[line=%d]%sError%s: %s",
+		err.line,
+		stage,
+		err.location,
+		err.message,
+	)
 }

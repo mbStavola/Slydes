@@ -7,6 +7,24 @@ import (
 	"github.com/mbStavola/slydes/pkg/types"
 )
 
+type stage int
+
+const (
+	unspecified stage = iota
+	lexing
+	parsing
+	compilation
+)
+
+func (s stage) String() string {
+	return []string{
+		"",
+		"Lexing",
+		"Parsing",
+		"Compilation",
+	}[s]
+}
+
 // This type represents a three phase "compiler" for
 // the Sly language which can produce an instance of Show
 type Sly struct {
