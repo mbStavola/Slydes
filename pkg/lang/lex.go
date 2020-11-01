@@ -240,12 +240,12 @@ func processRune(muncher *runeMuncher) (Token, error) {
 		dashCounter := 0
 
 		// Read runes until we encounter three dashes in a row
-		for char, _, err := muncher.ReadRune(); ; char, _, err = muncher.ReadRune() {
+		err := muncher.eatWhile(func(char rune) bool {
 			if char == '-' && dashCounter == 2 {
-				break
+				return false
 			} else if char == '-' {
 				dashCounter++
-				continue
+				return true
 			} else if dashCounter > 0 {
 				// If we've seen some number of dashes that is less than
 				// three, write them to the text buffer and reset the count
@@ -254,11 +254,13 @@ func processRune(muncher *runeMuncher) (Token, error) {
 				dashCounter = 0
 			}
 
-			if err != nil {
-				return Token{}, err
-			}
-
 			text.WriteRune(char)
+
+			return true
+		})
+
+		if err != nil {
+			return Token{}, err
 		}
 
 		return Token{
@@ -289,17 +291,19 @@ func processRune(muncher *runeMuncher) (Token, error) {
 		num := strings.Builder{}
 		num.WriteRune(char)
 
-		for char, _, err := muncher.ReadRune(); ; char, _, err = muncher.ReadRune() {
-			if err != nil {
-				return Token{}, err
-			}
-
+		err := muncher.eatWhile(func(char rune) bool {
 			if !unicode.IsNumber(char) {
 				muncher.UnreadRune()
-				break
+				return false
 			}
 
 			num.WriteRune(char)
+
+			return true
+		})
+
+		if err != nil {
+			return Token{}, err
 		}
 
 		data, err := strconv.ParseUint(num.String(), 10, 8)
@@ -326,17 +330,19 @@ func processRune(muncher *runeMuncher) (Token, error) {
 			ident := strings.Builder{}
 			ident.WriteRune(char)
 
-			for char, _, err := muncher.ReadRune(); ; char, _, err = muncher.ReadRune() {
-				if err != nil {
-					return Token{}, err
-				}
-
+			err := muncher.eatWhile(func(char rune) bool {
 				if !unicode.IsLetter(char) && !unicode.IsNumber(char) {
 					muncher.UnreadRune()
-					break
+					return false
 				}
 
 				ident.WriteRune(char)
+
+				return true
+			})
+
+			if err != nil {
+				return Token{}, err
 			}
 
 			return Token{
@@ -394,6 +400,20 @@ func (r *runeMuncher) eatN(n int) error {
 	for i := 0; i < n; i++ {
 		if _, _, err := r.ReadRune(); err != nil {
 			return err
+		}
+	}
+
+	return nil
+}
+
+func (r *runeMuncher) eatWhile(callback func(rune) bool) error {
+	for char, _, err := r.ReadRune(); ; char, _, err = r.ReadRune() {
+		if err != nil {
+			return err
+		}
+
+		if shouldContinue := callback(char); !shouldContinue {
+			break
 		}
 	}
 
