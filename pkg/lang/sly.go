@@ -1,9 +1,10 @@
 package lang
 
 import (
-	"github.com/mbStavola/slydes/pkg/types"
 	"io"
 	"strings"
+
+	"github.com/mbStavola/slydes/pkg/types"
 )
 
 // This type represents a three phase "compiler" for

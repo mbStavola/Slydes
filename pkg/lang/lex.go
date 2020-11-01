@@ -94,7 +94,7 @@ func (lex DefaultLexer) Lex(reader io.Reader) ([]Token, error) {
 		switch char {
 		case '#':
 			_, _, _ = bufReader.ReadLine()
-			line += 1
+			line++
 
 			break
 		case '[':
@@ -226,7 +226,7 @@ func (lex DefaultLexer) Lex(reader io.Reader) ([]Token, error) {
 				if char == '-' && dashCounter == 2 {
 					break
 				} else if char == '-' {
-					dashCounter += 1
+					dashCounter++
 					continue
 				} else if dashCounter > 0 {
 					// If we've seen some number of dashes that is less than
@@ -303,7 +303,7 @@ func (lex DefaultLexer) Lex(reader io.Reader) ([]Token, error) {
 
 			break
 		case '\n':
-			line += 1
+			line++
 
 			break
 		default:
