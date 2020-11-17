@@ -11,16 +11,15 @@ const (
 	InvalidStatement StatementType = iota
 
 	SlideDecl
-	ScopeDecl
+	BlockDecl
+	MacroDecl
 
 	VariableDeclaration
 
 	VariableAssignment
 	AttributeAssignment
-	MacroAssignment
 
 	WordBlock
-
 	MacroCall
 )
 
@@ -29,13 +28,13 @@ func (s StatementType) String() string {
 		"InvalidStatement",
 
 		"SlideDecl",
-		"ScopeDecl",
+		"BlockDecl",
+		"MacroDecl",
 
 		"VariableDeclaration",
 
 		"VariableAssignment",
 		"AttributeAssignment",
-		"MacroAssignment",
 
 		"WordBlock",
 		"MacroCall",
@@ -64,7 +63,19 @@ type AttributeStatement struct {
 	value interface{}
 }
 
-type MacroStatement struct {
+type SlideDeclaration struct {
+	name       string
+	parent     string
+	statements []Statement
+}
+
+type BlockDeclaration struct {
+	name       string
+	parent     string
+	statements []Statement
+}
+
+type MacroDeclaration struct {
 	name       string
 	statements []Statement
 }
@@ -119,28 +130,129 @@ func (pars DefaultParser) Parse(tokens []Token) ([]Statement, error) {
 }
 
 func declaration(muncher *tokenMuncher) (Statement, error) {
-	if muncher.eatIf(SlideScope) {
-		token := muncher.previous()
-		return Statement{
-			Type:  SlideDecl,
-			token: token,
-		}, nil
-	}
-
-	if muncher.eatIf(SubScope) {
-		token := muncher.previous()
-		return Statement{
-			Type:  ScopeDecl,
-			token: token,
-		}, nil
-	}
-
 	if muncher.eatIf(Text) {
 		token := muncher.previous()
 		return Statement{
 			Type:  WordBlock,
 			token: token,
 			data:  token.data,
+		}, nil
+	}
+
+	return block(muncher)
+}
+
+func block(muncher *tokenMuncher) (Statement, error) {
+	token := muncher.peek()
+
+	switch token.Type {
+	case Slide, Block, Macro:
+	default:
+		return call(muncher)
+	}
+
+	muncher.eat()
+	identToken, err := muncher.tryEat(Identifier)
+	if err != nil {
+		return Statement{}, err
+	}
+
+	// TODO(Matt): Eventually support params
+	var parent string
+	if token.Type == Macro {
+		if _, err := muncher.tryEat(LeftParen); err != nil {
+			return Statement{}, err
+		}
+		if _, err := muncher.tryEat(RightParen); err != nil {
+			return Statement{}, err
+		}
+	} else if muncher.eatIf(Colon) {
+		parentIdent, err := muncher.tryEat(Identifier)
+		if err != nil {
+			return Statement{}, err
+		}
+
+		parent = parentIdent.data.(string)
+	}
+
+	if _, err := muncher.tryEat(LeftBrace); err != nil {
+		return Statement{}, err
+	}
+
+	statements := make([]Statement, 0)
+	for !muncher.check(RightBrace) {
+		statement, err := declaration(muncher)
+		if err != nil {
+			return Statement{}, err
+		}
+		statements = append(statements, statement)
+	}
+
+	// Eat closing brace
+	muncher.eat()
+
+	var Type StatementType
+	var data interface{}
+	switch token.Type {
+	case Slide:
+		Type = SlideDecl
+		data = SlideDeclaration{
+			name:       identToken.data.(string),
+			parent:     parent,
+			statements: statements,
+		}
+	case Block:
+		Type = BlockDecl
+		data = BlockDeclaration{
+			name:       identToken.data.(string),
+			parent:     parent,
+			statements: statements,
+		}
+	case Macro:
+		Type = MacroDecl
+		data = MacroDeclaration{
+			name:       identToken.data.(string),
+			statements: statements,
+		}
+	default:
+		panic("unreachable")
+	}
+
+	return Statement{
+		Type:  Type,
+		token: token,
+		data:  data,
+	}, nil
+}
+
+func call(muncher *tokenMuncher) (Statement, error) {
+	if muncher.eatIf(DollarSign) {
+		token := muncher.previous()
+
+		identToken, err := muncher.tryEat(Identifier)
+		if err != nil {
+			return Statement{}, err
+		}
+
+		// TODO(Matt): Handle parameter passing later
+		if _, err := muncher.tryEat(LeftParen); err != nil {
+			return Statement{}, err
+		}
+
+		if _, err := muncher.tryEat(RightParen); err != nil {
+			return Statement{}, err
+		}
+
+		if _, err := muncher.tryEat(Semicolon); err != nil {
+			return Statement{}, err
+		}
+
+		return Statement{
+			Type:  MacroCall,
+			token: token,
+			data: MacroInvocation{
+				reference: identToken.data.(string),
+			},
 		}, nil
 	}
 
@@ -152,111 +264,63 @@ func assignment(muncher *tokenMuncher) (Statement, error) {
 	token := muncher.peek()
 
 	switch token.Type {
-	case Let:
+	case Let, Mut:
 		ty = VariableDeclaration
 		muncher.eat()
-
-		break
-	case Mut:
-		ty = VariableDeclaration
-		muncher.eat()
-
-		break
-	case AtSign:
+	case Self:
 		ty = AttributeAssignment
 		muncher.eat()
 
-		break
-	case DollarSign:
-		ty = MacroAssignment
-		muncher.eat()
-	}
-
-	if muncher.eatIf(Identifier) {
-		identToken := muncher.previous()
-
-		// Macro call
-		if ty == MacroAssignment && muncher.eatIf(LeftParen) {
-			if _, err := muncher.tryEat(RightParen); err != nil {
-				return Statement{}, err
-			}
-			if _, err := muncher.tryEat(Semicolon); err != nil {
-				return Statement{}, err
-			}
-
-			return Statement{
-				Type:  MacroCall,
-				token: token,
-				data: MacroInvocation{
-					reference: identToken.data.(string),
-				},
-			}, nil
-		}
-
-		if _, err := muncher.tryEat(EqualSign); err != nil {
+		if _, err := muncher.tryEat(Dot); err != nil {
 			return Statement{}, err
 		}
-
-		var data interface{}
-		if ty == MacroAssignment {
-			if _, err := muncher.tryEat(LeftBrace); err != nil {
-				return Statement{}, err
-			}
-
-			statements := make([]Statement, 0)
-			for !muncher.check(RightBrace) {
-				statement, err := declaration(muncher)
-				if err != nil {
-					return Statement{}, err
-				}
-				statements = append(statements, statement)
-			}
-
-			// Eat closing brace
-			muncher.eat()
-
-			data = MacroStatement{
-				name:       identToken.data.(string),
-				statements: statements,
-			}
-		} else {
-			value, err := colorLiteral(muncher)
-			if err != nil {
-				return Statement{}, err
-			}
-
-			if ty == VariableDeclaration {
-				data = VariableDeclStatement{
-					name:      identToken.data.(string),
-					isMutable: token.Type == Mut,
-					value:     value,
-				}
-			} else if ty == VariableAssignment {
-				data = VariableStatement{
-					name:  identToken.data.(string),
-					value: value,
-				}
-			} else {
-				data = AttributeStatement{
-					name:  identToken.data.(string),
-					value: value,
-				}
-			}
-		}
-
-		if _, err := muncher.tryEat(Semicolon); err != nil {
-			return Statement{}, err
-		}
-
-		return Statement{
-			Type:  ty,
-			token: token,
-			data:  data,
-		}, nil
 	}
 
-	message := fmt.Sprintf("Unexpected token %s", token.Type.String())
-	return Statement{}, tokenErrorInfo(token, parsing, message)
+	if !muncher.eatIf(Identifier) {
+		message := fmt.Sprintf("Unexpected token %s", token.Type.String())
+		return Statement{}, tokenErrorInfo(token, parsing, message)
+	}
+
+	identToken := muncher.previous()
+
+	if _, err := muncher.tryEat(EqualSign); err != nil {
+		return Statement{}, err
+	}
+
+	value, err := colorLiteral(muncher)
+	if err != nil {
+		return Statement{}, err
+	}
+
+	var data interface{}
+	switch ty {
+	case VariableDeclaration:
+		data = VariableDeclStatement{
+			name:      identToken.data.(string),
+			isMutable: token.Type == Mut,
+			value:     value,
+		}
+	case VariableAssignment:
+		data = VariableStatement{
+			name:  identToken.data.(string),
+			value: value,
+		}
+	case AttributeAssignment:
+		data = AttributeStatement{
+			name:  identToken.data.(string),
+			value: value,
+		}
+	}
+
+	if _, err := muncher.tryEat(Semicolon); err != nil {
+		return Statement{}, err
+	}
+
+	return Statement{
+		Type:  ty,
+		token: token,
+		data:  data,
+	}, nil
 }
 
 func colorLiteral(muncher *tokenMuncher) (interface{}, error) {

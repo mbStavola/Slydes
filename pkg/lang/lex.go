@@ -23,18 +23,20 @@ const (
 	LeftBrace
 	RightBrace
 	Semicolon
+	Colon
 	AtSign
 	DollarSign
 	EqualSign
 	Comma
+	Dot
 
 	// Keywords
 	Let
 	Mut
-
-	// Special
-	SlideScope
-	SubScope
+	Macro
+	Slide
+	Block
+	Self
 
 	// Literals
 	Identifier
@@ -55,16 +57,19 @@ func (t TokenType) String() string {
 		"LeftBrace",
 		"RightBrace",
 		"Semicolon",
+		"Colon",
 		"AtSign",
 		"DollarSign",
 		"EqualSign",
 		"Comma",
+		"Dot",
 
 		"Let",
 		"Mut",
-
-		"SlideScope",
-		"SubScope",
+		"Macro",
+		"Slide",
+		"Block",
+		"Self",
 
 		"Identifier",
 
@@ -131,41 +136,6 @@ func processRune(muncher *runeMuncher) (Token, error) {
 		muncher.newLine()
 		return Token{Type: Skip}, nil
 
-	case '[':
-		ty := SlideScope
-		if shouldEat, err := muncher.eatIf('['); err == io.EOF {
-			return Token{}, lexemeErrorInfo(muncher.line, char, "Unexpected end of file")
-		} else if err != nil {
-			return Token{}, err
-		} else if shouldEat {
-			ty = SubScope
-		}
-
-		title, err := muncher.ReadString(']')
-		if err == io.EOF {
-			return Token{}, lexemeErrorInfo(muncher.line, char, "Unterminated scope")
-		} else if err != nil {
-			return Token{}, err
-		}
-
-		if shouldEat, err := muncher.eatIf(']'); err == io.EOF {
-			return Token{}, lexemeErrorInfo(muncher.line, char, "Unexpected end of file")
-		} else if err != nil {
-			return Token{}, err
-		} else if ty == SubScope && !shouldEat {
-			return Token{}, lexemeErrorInfo(muncher.line, ']', "Subscope expected closing ']'")
-		} else if ty == SlideScope && shouldEat {
-			return Token{}, lexemeErrorInfo(muncher.line, ']', "Dangling scope end")
-		}
-
-		return Token{
-			Type:   ty,
-			line:   muncher.line,
-			lexeme: char,
-			// Cut off the dangling ] in the scope title
-			data: title[:len(title)-1],
-		}, nil
-
 	case '(':
 		return Token{
 			Type:   LeftParen,
@@ -222,6 +192,13 @@ func processRune(muncher *runeMuncher) (Token, error) {
 			lexeme: char,
 		}, nil
 
+	case ':':
+		return Token{
+			Type:   Colon,
+			line:   muncher.line,
+			lexeme: char,
+		}, nil
+
 	case ',':
 		return Token{
 			Type:   Comma,
@@ -229,13 +206,19 @@ func processRune(muncher *runeMuncher) (Token, error) {
 			lexeme: char,
 		}, nil
 
+	case '.':
+		return Token{
+			Type:   Dot,
+			line:   muncher.line,
+			lexeme: char,
+		}, nil
+
 	case 'l':
-		if chars, err := muncher.Peek(2); err == io.EOF {
+		if ok, err := muncher.eatKeyword("et"); err == io.EOF {
 			return Token{}, lexemeErrorInfo(muncher.line, char, "Unexpected end of file")
 		} else if err != nil {
 			return Token{}, err
-		} else if string(chars[:]) == "et" {
-			muncher.eatN(2)
+		} else if ok {
 			return Token{
 				Type:   Let,
 				line:   muncher.line,
@@ -243,23 +226,64 @@ func processRune(muncher *runeMuncher) (Token, error) {
 			}, nil
 		}
 
-		// Intentional fallthrough-- this might be an identifier
-
 	case 'm':
-		if chars, err := muncher.Peek(2); err == io.EOF {
+		if ok, err := muncher.eatKeyword("ut"); err == io.EOF {
 			return Token{}, lexemeErrorInfo(muncher.line, char, "Unexpected end of file")
 		} else if err != nil {
 			return Token{}, err
-		} else if string(chars[:]) == "ut" {
-			muncher.eatN(2)
+		} else if ok {
 			return Token{
 				Type:   Mut,
 				line:   muncher.line,
 				lexeme: char,
 			}, nil
+		} else if ok, err := muncher.eatKeyword("acro"); err == io.EOF {
+			return Token{}, lexemeErrorInfo(muncher.line, char, "Unexpected end of file")
+		} else if err != nil {
+			return Token{}, err
+		} else if ok {
+			return Token{
+				Type:   Macro,
+				line:   muncher.line,
+				lexeme: char,
+			}, nil
 		}
 
-		// Intentional fallthrough-- this might be an identifier
+	case 's':
+		if ok, err := muncher.eatKeyword("lide"); err == io.EOF {
+			return Token{}, lexemeErrorInfo(muncher.line, char, "Unexpected end of file")
+		} else if err != nil {
+			return Token{}, err
+		} else if ok {
+			return Token{
+				Type:   Slide,
+				line:   muncher.line,
+				lexeme: char,
+			}, nil
+		} else if ok, err := muncher.eatKeyword("elf"); err == io.EOF {
+			return Token{}, lexemeErrorInfo(muncher.line, char, "Unexpected end of file")
+		} else if err != nil {
+			return Token{}, err
+		} else if ok {
+			return Token{
+				Type:   Self,
+				line:   muncher.line,
+				lexeme: char,
+			}, nil
+		}
+
+	case 'b':
+		if ok, err := muncher.eatKeyword("lock"); err == io.EOF {
+			return Token{}, lexemeErrorInfo(muncher.line, char, "Unexpected end of file")
+		} else if err != nil {
+			return Token{}, err
+		} else if ok {
+			return Token{
+				Type:   Block,
+				line:   muncher.line,
+				lexeme: char,
+			}, nil
+		}
 
 	case '-':
 		if chars, err := muncher.Peek(2); err == io.EOF {
@@ -363,39 +387,36 @@ func processRune(muncher *runeMuncher) (Token, error) {
 	case '\n':
 		muncher.newLine()
 		return Token{Type: Skip}, nil
-
-	default:
-		if unicode.IsLetter(char) {
-			ident := strings.Builder{}
-			ident.WriteRune(char)
-
-			err := muncher.eatWhile(func(char rune) bool {
-				if !unicode.IsLetter(char) && !unicode.IsNumber(char) {
-					muncher.UnreadRune()
-					return false
-				}
-
-				ident.WriteRune(char)
-
-				return true
-			})
-
-			if err != nil {
-				return Token{}, err
-			}
-
-			return Token{
-				Type:   Identifier,
-				line:   muncher.line,
-				lexeme: char,
-				data:   ident.String(),
-			}, nil
-		}
-
-		return Token{}, lexemeErrorInfo(muncher.line, char, "Unexpected character")
 	}
 
-	panic("unreachable")
+	if unicode.IsLetter(char) {
+		ident := strings.Builder{}
+		ident.WriteRune(char)
+
+		err := muncher.eatWhile(func(char rune) bool {
+			if !unicode.IsLetter(char) && !unicode.IsNumber(char) {
+				muncher.UnreadRune()
+				return false
+			}
+
+			ident.WriteRune(char)
+
+			return true
+		})
+
+		if err != nil {
+			return Token{}, err
+		}
+
+		return Token{
+			Type:   Identifier,
+			line:   muncher.line,
+			lexeme: char,
+			data:   ident.String(),
+		}, nil
+	}
+
+	return Token{}, lexemeErrorInfo(muncher.line, char, "Unexpected character")
 }
 
 type runeMuncher struct {
@@ -457,4 +478,17 @@ func (r *runeMuncher) eatWhile(callback func(rune) bool) error {
 	}
 
 	return nil
+}
+
+func (r *runeMuncher) eatKeyword(rest string) (bool, error) {
+	restLen := len(rest)
+
+	if chars, err := r.Peek(restLen); err != nil {
+		return false, err
+	} else if string(chars[:]) == rest {
+		r.eatN(restLen)
+		return true, nil
+	}
+
+	return false, nil
 }

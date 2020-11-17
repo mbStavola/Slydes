@@ -48,12 +48,9 @@ func main() {
 
 	switch *output {
 	case "noop":
-		break
 	case "html":
 		if err := html.Render(show); err != nil {
 			fmt.Print(err)
 		}
-
-		break
 	}
 }
