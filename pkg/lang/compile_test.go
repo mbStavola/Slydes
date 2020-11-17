@@ -11,12 +11,17 @@ func TestAttributeAssignment(t *testing.T) {
 	statements := []Statement{
 		{
 			Type: SlideDecl,
-		},
-		{
-			Type: AttributeAssignment,
-			data: AttributeStatement{
-				name:  "backgroundColor",
-				value: "black",
+			data: SlideDeclaration{
+				name: "example",
+				statements: []Statement{
+					{
+						Type: AttributeAssignment,
+						data: AttributeStatement{
+							name:  "backgroundColor",
+							value: "black",
+						},
+					},
+				},
 			},
 		},
 	}
@@ -28,13 +33,13 @@ func TestAttributeAssignment(t *testing.T) {
 		return
 	}
 
-	if len(show.Slides) != 2 {
-		t.Errorf("Expected exactly two slides-- got %d", len(show.Slides))
+	if len(show.Slides) != 1 {
+		t.Errorf("Expected exactly one slides-- got %d", len(show.Slides))
 		return
 	}
 
 	// Skip title slide
-	slide := show.Slides[1]
+	slide := show.Slides[0]
 	if slide.Background != color.Black {
 		t.Errorf("Expected black background-- got %s", slide.Background)
 	}

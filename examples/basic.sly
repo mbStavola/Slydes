@@ -13,64 +13,61 @@ let coolGray = (26, 83, 92);
 mut paleGreen = (247, 255, 247);
 let tealBlue = (78, 205, 196);
 
-# Set the default styles for the rest
-# of the presentation
-@backgroundColor = coolGray;
+macro titleStyle() {
+    self.font = "Fira Code";
+    self.fontSize = 42;
+    self.fontColor = tealBlue;
+    self.justify = "center";
+}
 
-$titleStyle = {
-    @font = "Fira Code";
-    @fontSize = 42;
-    @fontColor = tealBlue;
-    @justify = "center";
-};
+macro contentStyle() {
+    self.justify = "left";
+    self.font = "Times New Roman";
+    self.fontSize = 32;
+    self.fontColor = paleGreen;
+}
 
-$contentStyle = {
-    @justify = "left";
-    @font = "Times New Roman";
-    @fontSize = 32;
-    @fontColor = paleGreen;
-};
+slide intro {
+    self.backgroundColor = coolGray;
 
-$titleStyle();
+    block title {
+        $titleStyle();
 
----
-Welcome!
+        ---
+        Welcome!
 
-This is an example of Slydes
----
+        This is an example of Slydes
+        ---
+    }
+}
 
-[First Slide]
-$titleStyle();
+slide firstSlide : intro {
+    block title {
+        $titleStyle();
+        ---These are my thoughts---
+    }
 
----
-These are my thoughts
----
+    block pointOne {
+        $contentStyle();
+        --- - This is my first point ---
+    }
 
-[[Body - Point 1]]
-$contentStyle();
+    block pointTwo : pointOne {
+        --- - This is my second point ---
+    }
+}
 
----
-- This is my first point
----
+slide secondSlide : intro {
+    block title {
+        $titleStyle();
+        ---How about this?---
+    }
 
-[[Body - Point 2]]
+    block body1 {
+        $contentStyle();
 
----
-- This is my second point
----
-
-[Second Slide]
-$titleStyle();
-
----
-How about this?
----
-
-[[Body 1]]
-@justify = "right";
-@font = "Times New Roman";
-@fontSize = 38;
-@fontColor = paleGreen;
+        self.justify = "right";
+        self.fontSize = 38;
 
 ---
 
@@ -79,23 +76,28 @@ How about this?
 
 
 I'm boldly making my point---
+    }
 
-[[Body 2]]
-@justify = "center";
+    block body2 : body1 {
+        self.fontColor = "red";
+        self.justify = "center";
+        ---With some style---
+    }
 
----With some style---
+    block body3 : body2 {
+        self.justify = "left";
+        ---What do you think?---
+    }
+}
 
-[[Body 3]]
-@justify = "left";
-
----What do you think?---
-
-[Conclusion]
-$titleStyle();
-
+slide conclusion : intro {
+    block title {
+        $titleStyle();
 ---
 
 
 
 We're through
 ---
+    }
+}

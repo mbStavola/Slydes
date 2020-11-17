@@ -18,32 +18,30 @@ func TestSimplePresentation(t *testing.T) {
 	let paleGreen = (247, 255, 247,);
 	let tealBlue = (78, 205, 196, 255);
 
-	---Welcome!---
+	slide intro {
+		block ex { ---Welcome!--- }
+	}
 
-	[First Slide]
-	@backgroundColor = coolGray;
-	---Default
+	slide first {
+		self.backgroundColor = coolGray;
+		block title {
+			---Default
 Text
 ---
+		}
 
-[[Scope]]
-	@font = "Fira Code";
-	@fontColor = paleGreen;
+		block scope {
+			self.font = "Fira Code";
+			self.fontColor = paleGreen;
+			---Amazing---
+		}
 
----
-	Amazing
-		---
-
-	[[Second Scope]]
-	@fontColor = "red";
-	@justify = "center";
-
-
-		[Second Slide]
-		
-		---
-		GoodBye
-		---`
+		block secondScope : scope {
+			self.fontColor = "red";
+			self.justify = "center";
+			---GoodBye---
+		}
+	}`
 
 	show, err := sly.ReadSlideShowString(source)
 	if err != nil {
@@ -51,8 +49,8 @@ Text
 		return
 	}
 
-	if len(show.Slides) != 3 {
-		t.Errorf("Expected exactly three slides-- got %d", len(show.Slides))
+	if len(show.Slides) != 2 {
+		t.Errorf("Expected exactly two slides-- got %d", len(show.Slides))
 		return
 	}
 
@@ -109,9 +107,8 @@ Text
 
 	thirdBlock := firstSlide.Blocks[2]
 	fontColor = thirdBlock.Style.Color.(color.RGBA)
-	if thirdBlock.Words != "" {
-		t.Errorf("Expected no words-- got %s", strings.TrimSpace(thirdBlock.Words))
-		return
+	if strings.TrimSpace(thirdBlock.Words) != "GoodBye" {
+		t.Errorf("Expected words \"GoodBye\"-- got %s", strings.TrimSpace(thirdBlock.Words))
 	} else if fontColor.R != 255 || fontColor.G != 0 || fontColor.B != 0 || fontColor.A != 255 {
 		t.Errorf("Expected (255, 0, 0, 255) font color-- got (%d, %d, %d, %d)", fontColor.R, fontColor.G, fontColor.B, fontColor.A)
 		return
@@ -122,37 +119,27 @@ Text
 		t.Errorf("Expected center justification-- got %s", thirdBlock.Style.Justification)
 		return
 	}
-
-	secondSlide := show.Slides[2]
-	background = secondSlide.Background.(color.RGBA)
-	if background.R != 26 || background.G != 83 || background.B != 92 || background.A != 255 {
-		t.Errorf("Expected (26, 83, 92, 255) background-- got (%d, %d, %d, %d)", background.R, background.G, background.B, background.A)
-		return
-	} else if len(secondSlide.Blocks) != 1 {
-		t.Errorf("Expected exactly one block-- got %d", len(secondSlide.Blocks))
-		return
-	}
-
-	lastBlock := secondSlide.Blocks[0]
-	if strings.TrimSpace(lastBlock.Words) != "GoodBye" {
-		t.Errorf("Expected words \"GoodBye\"-- got %s", strings.TrimSpace(lastBlock.Words))
-	}
 }
 
 func TestMacro(t *testing.T) {
 	source := `
 	let red = "red";
-	$styleMacro = {
-		@backgroundColor = red;
-		@fontColor = "blue";
-	};
-	
-	---First---
+	macro slMacro() {
+		self.backgroundColor = red;
+	}
 
-	[Test]
-	$styleMacro();
+	macro blMacro() {
+		self.fontColor = "blue";
+	}
 
-	---Example---`
+	slide first {
+		$slMacro();
+
+		block ex {
+			$blMacro();
+			---Example---
+		}
+	}`
 
 	show, err := sly.ReadSlideShowString(source)
 	if err != nil {
@@ -160,27 +147,15 @@ func TestMacro(t *testing.T) {
 		return
 	}
 
-	if len(show.Slides) != 2 {
-		t.Errorf("Expected exactly two slides-- got %d", len(show.Slides))
+	if len(show.Slides) != 1 {
+		t.Errorf("Expected exactly one slides-- got %d", len(show.Slides))
 		return
 	}
 
-	titleSlide := show.Slides[0]
-	titleBlock := titleSlide.Blocks[0]
-	if titleSlide.Background != color.White {
-		r, g, b, a := titleSlide.Background.RGBA()
-		t.Errorf("Expected white background color-- got (%d, %d, %d, %d)", r, g, b, a)
-		return
-	} else if titleBlock.Style.Color != color.Black {
-		r, g, b, a := titleBlock.Style.Color.RGBA()
-		t.Errorf("Expected black font color-- got (%d, %d, %d, %d)", r, g, b, a)
-		return
-	}
-
-	closingSlide := show.Slides[1]
-	closingBlock := closingSlide.Blocks[0]
-	bgColor := closingSlide.Background.(color.RGBA)
-	fontColor := closingBlock.Style.Color.(color.RGBA)
+	slide := show.Slides[0]
+	block := slide.Blocks[0]
+	bgColor := slide.Background.(color.RGBA)
+	fontColor := block.Style.Color.(color.RGBA)
 	if bgColor.R != 255 && bgColor.G != 0 && bgColor.B != 0 && bgColor.A != 255 {
 		t.Errorf("Expected red background color-- got (%d, %d, %d, %d)", bgColor.R, bgColor.G, bgColor.B, bgColor.A)
 		return

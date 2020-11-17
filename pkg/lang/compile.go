@@ -8,12 +8,109 @@ import (
 	"github.com/mbStavola/slydes/pkg/types"
 )
 
-var reservedNames = map[string]bool{
-	"backgroundColor": true,
-	"justify":         true,
-	"font":            true,
-	"fontColor":       true,
-	"fontSize":        true,
+type ScopeType int
+
+const (
+	InvalidScope ScopeType = iota
+
+	FileScope
+	SlideScope
+	BlockScope
+)
+
+func (s ScopeType) String() string {
+	return []string{
+		"InvalidScope",
+
+		"FileScope",
+		"SlideScope",
+		"BlockScope",
+	}[s]
+}
+
+type variableValue struct {
+	isMutable bool
+	value     interface{}
+}
+
+type scope struct {
+	Type      ScopeType
+	parent    *scope
+	slides    map[string]types.Slide
+	blocks    map[string]types.Block
+	variables map[string]variableValue
+	macros    map[string][]Statement
+}
+
+func newTopLevelScope() *scope {
+	scope := new(scope)
+	scope.Type = FileScope
+	scope.slides = make(map[string]types.Slide)
+	scope.blocks = make(map[string]types.Block)
+	scope.variables = make(map[string]variableValue)
+	scope.macros = make(map[string][]Statement)
+
+	return scope
+}
+
+func (s *scope) declareVariable(token Token, isMutable bool, name string, value interface{}) error {
+	if _, ok := s.variables[name]; !ok {
+		s.variables[name] = variableValue{
+			isMutable: isMutable,
+			value:     value,
+		}
+		return nil
+	}
+
+	return tokenErrorInfo(token, compilation, "variable already declared in this scope")
+}
+
+func (s *scope) setVariable(token Token, name string, value interface{}) error {
+	variable, ok := s.variables[name]
+	if !ok && s.parent != nil {
+		return s.parent.setVariable(token, name, value)
+	} else if !ok {
+		return tokenErrorInfo(token, compilation, "cannot assign to undeclared variable")
+	}
+
+	if !variable.isMutable {
+		return tokenErrorInfo(token, compilation, "cannot assign to an immutable binding")
+	}
+
+	variable.value = value
+
+	return nil
+}
+
+func (s *scope) getVariable(token Token, name string) (interface{}, error) {
+	variable, ok := s.variables[name]
+	if !ok && s.parent != nil {
+		return s.parent.getVariable(token, name)
+	} else if !ok {
+		return nil, tokenErrorInfo(token, compilation, "variable must be initialized before dereference")
+	}
+
+	return variable.value, nil
+}
+
+func (s *scope) declareMacro(token Token, name string, statements []Statement) error {
+	if _, ok := s.macros[name]; !ok {
+		s.macros[name] = statements
+		return nil
+	}
+
+	return tokenErrorInfo(token, compilation, "macro already declared in this scope")
+}
+
+func (s *scope) getMacro(token Token, name string) ([]Statement, error) {
+	statements, ok := s.macros[name]
+	if !ok && s.parent != nil {
+		return s.parent.getMacro(token, name)
+	} else if !ok {
+		return nil, tokenErrorInfo(token, compilation, "macro must be defined before use")
+	}
+
+	return statements, nil
 }
 
 type Compiler interface {
@@ -46,113 +143,157 @@ func (comp DefaultCompiler) Compile(statements []Statement) (types.Show, error) 
 }
 
 type compilationState struct {
-	show      types.Show
-	slide     types.Slide
-	block     types.Block
-	variables map[string]variableValue
-	macros    map[string][]Statement
+	show  types.Show
+	slide *types.Slide
+	block *types.Block
+	scope *scope
 }
 
 func newCompilationState() compilationState {
 	show := types.NewShow()
-	variables := make(map[string]variableValue)
-	macros := make(map[string][]Statement)
-
-	var slide = types.NewSlide()
-	var block = types.NewBlock()
 
 	return compilationState{
-		show:      show,
-		slide:     slide,
-		block:     block,
-		variables: variables,
-		macros:    macros,
+		show:  show,
+		slide: nil,
+		block: nil,
+		scope: newTopLevelScope(),
 	}
+}
+
+func (cs *compilationState) openScope(ty ScopeType) {
+	scope := new(scope)
+	scope.Type = ty
+	scope.parent = cs.scope
+	scope.slides = make(map[string]types.Slide)
+	scope.blocks = make(map[string]types.Block)
+	scope.variables = make(map[string]variableValue)
+	scope.macros = make(map[string][]Statement)
+
+	cs.scope = scope
+}
+
+func (cs *compilationState) closeScope() {
+	cs.scope = cs.scope.parent
 }
 
 func (cs *compilationState) processStatement(statement Statement) error {
 	switch statement.Type {
 	case SlideDecl:
-		cs.slide.Blocks = append(cs.slide.Blocks, cs.block)
-		cs.show.Slides = append(cs.show.Slides, cs.slide)
+		decl := statement.data.(SlideDeclaration)
 
-		cs.block = types.NewBlock()
-		cs.slide = types.Slide{
-			Background: cs.slide.Background,
-			Blocks:     make([]types.Block, 0),
+		if cs.scope.Type != FileScope {
+			return tokenErrorInfo(statement.token, compilation, "A slide may only be defined at the top level")
 		}
 
-		break
-	case ScopeDecl:
-		cs.slide.Blocks = append(cs.slide.Blocks, cs.block)
+		slide := types.NewSlide()
+		cs.slide = &slide
 
-		// Copy Style from previous block to make things
-		// less tedious when writing multiple blocks
-		cs.block = types.Block{Style: cs.block.Style}
+		// If the slide has a parent, copy the parent's attributes
+		if decl.parent != "" {
+			parent, ok := cs.scope.slides[decl.parent]
+			if !ok {
+				return tokenErrorInfo(statement.token, compilation, "Cannot inherit from an undefined slide")
+			}
 
-		break
+			slide.Background = parent.Background
+		}
+
+		cs.openScope(SlideScope)
+		for _, statement := range decl.statements {
+			if err := cs.processStatement(statement); err != nil {
+				return err
+			}
+		}
+		cs.closeScope()
+
+		cs.show.Slides = append(cs.show.Slides, slide)
+		cs.scope.slides[decl.name] = slide
+	case BlockDecl:
+		decl := statement.data.(BlockDeclaration)
+
+		if cs.scope.Type != SlideScope {
+			return tokenErrorInfo(statement.token, compilation, "A block may only be defined within a slide")
+		}
+
+		block := types.NewBlock()
+		cs.block = &block
+
+		// If the block has a parent, copy the parent's attributes
+		if decl.parent != "" {
+			parent, ok := cs.scope.blocks[decl.parent]
+			if !ok {
+				return tokenErrorInfo(statement.token, compilation, "Cannot inherit from an undefined block")
+			}
+
+			block.Style = parent.Style
+		}
+
+		cs.openScope(BlockScope)
+		for _, statement := range decl.statements {
+			if err := cs.processStatement(statement); err != nil {
+				return err
+			}
+		}
+		cs.closeScope()
+
+		cs.slide.Blocks = append(cs.slide.Blocks, block)
+		cs.scope.blocks[decl.name] = block
 	case WordBlock:
-		cs.block.Words = statement.data.(string)
+		if cs.scope.Type != BlockScope {
+			return tokenErrorInfo(statement.token, compilation, "Text may only be defined within a block")
+		}
 
-		break
+		cs.block.Words = statement.data.(string)
 	case VariableDeclaration:
 		variable := statement.data.(VariableDeclStatement)
-		if reservedNames[variable.name] {
-			return tokenErrorInfo(statement.token, compilation, "cannot declare using a reserved name")
-		}
 
-		value := variableValue{isMutable: variable.isMutable}
-
+		var value interface{}
 		switch data := variable.value.(type) {
 		case uint8, string, ColorLiteral:
-			value.value = data
-
-			break
+			value = data
 		case VariableReference:
-			dereferenced, err := cs.dereferenceVariable(statement.token, data.reference)
+			dereferenced, err := cs.scope.getVariable(statement.token, data.reference)
 			if err != nil {
 				return err
 			}
 
-			value.value = dereferenced
+			value = dereferenced
 		}
 
-		cs.variables[variable.name] = value
-
-		break
+		if err := cs.scope.declareVariable(statement.token, variable.isMutable, variable.name, value); err != nil {
+			return err
+		}
 	case VariableAssignment:
 		variable := statement.data.(VariableStatement)
 
-		value, ok := cs.variables[variable.name]
-		if !ok {
-			return tokenErrorInfo(statement.token, compilation, "cannot assign to undeclared variable")
-		} else if !value.isMutable {
-			return tokenErrorInfo(statement.token, compilation, "cannot assign to an immutable binding")
-		}
-
+		var value interface{}
 		switch data := variable.value.(type) {
 		case uint8, string, ColorLiteral:
-			value.value = data
-
-			break
+			value = data
 		case VariableReference:
-			dereferenced, err := cs.dereferenceVariable(statement.token, data.reference)
+			dereferenced, err := cs.scope.getVariable(statement.token, data.reference)
 			if err != nil {
 				return err
 			}
 
-			value.value = dereferenced
+			value = dereferenced
 		}
 
-		break
+		if err := cs.scope.setVariable(statement.token, variable.name, value); err != nil {
+			return err
+		}
 	case AttributeAssignment:
 		attribute := statement.data.(AttributeStatement)
 
 		switch attribute.name {
 		case "backgroundColor":
+			if cs.scope.Type != SlideScope {
+				return tokenErrorInfo(statement.token, compilation, "backgroundColor attribute is only available for slides")
+			}
+
 			switch value := attribute.value.(type) {
 			case VariableReference:
-				val, err := cs.dereferenceVariable(statement.token, value.reference)
+				val, err := cs.scope.getVariable(statement.token, value.reference)
 				if err != nil {
 					return err
 				}
@@ -163,8 +304,6 @@ func (cs *compilationState) processStatement(statement Statement) error {
 				}
 
 				cs.slide.Background = c
-
-				break
 			default:
 				c, err := colorFromLiteral(statement.token, value)
 				if err != nil {
@@ -173,19 +312,24 @@ func (cs *compilationState) processStatement(statement Statement) error {
 
 				cs.slide.Background = c
 			}
-
-			break
 		case "justify":
+			if cs.scope.Type != BlockScope {
+				return tokenErrorInfo(statement.token, compilation, "justify attribute is only available for blocks")
+			}
+
 			switch value := attribute.value.(type) {
 			case VariableReference:
-				justification, err := justificationFromLiteral(statement.token, cs.variables[value.reference])
+				val, err := cs.scope.getVariable(statement.token, value.reference)
+				if err != nil {
+					return err
+				}
+
+				justification, err := justificationFromLiteral(statement.token, val)
 				if err != nil {
 					return err
 				}
 
 				cs.block.Style.Justification = justification
-
-				break
 			case string:
 				justification, err := justificationFromLiteral(statement.token, value)
 				if err != nil {
@@ -194,12 +338,14 @@ func (cs *compilationState) processStatement(statement Statement) error {
 
 				cs.block.Style.Justification = justification
 			}
-
-			break
 		case "font":
+			if cs.scope.Type != BlockScope {
+				return tokenErrorInfo(statement.token, compilation, "font attribute is only available for blocks")
+			}
+
 			switch value := attribute.value.(type) {
 			case VariableReference:
-				val, err := cs.dereferenceVariable(statement.token, value.reference)
+				val, err := cs.scope.getVariable(statement.token, value.reference)
 				if err != nil {
 					return err
 				}
@@ -210,17 +356,17 @@ func (cs *compilationState) processStatement(statement Statement) error {
 				default:
 					return tokenErrorInfo(statement.token, compilation, "Font attribute must be a string")
 				}
-
-				break
 			case string:
 				cs.block.Style.Font = value
 			}
-
-			break
 		case "fontColor":
+			if cs.scope.Type != BlockScope {
+				return tokenErrorInfo(statement.token, compilation, "fontColor attribute is only available for blocks")
+			}
+
 			switch value := attribute.value.(type) {
 			case VariableReference:
-				val, err := cs.dereferenceVariable(statement.token, value.reference)
+				val, err := cs.scope.getVariable(statement.token, value.reference)
 				if err != nil {
 					return err
 				}
@@ -231,8 +377,6 @@ func (cs *compilationState) processStatement(statement Statement) error {
 				}
 
 				cs.block.Style.Color = c
-
-				break
 			default:
 				c, err := colorFromLiteral(statement.token, value)
 				if err != nil {
@@ -241,12 +385,14 @@ func (cs *compilationState) processStatement(statement Statement) error {
 
 				cs.block.Style.Color = c
 			}
-
-			break
 		case "fontSize":
+			if cs.scope.Type != BlockScope {
+				return tokenErrorInfo(statement.token, compilation, "fontSize attribute is only available for blocks")
+			}
+
 			switch value := attribute.value.(type) {
 			case VariableReference:
-				val, err := cs.dereferenceVariable(statement.token, value.reference)
+				val, err := cs.scope.getVariable(statement.token, value.reference)
 				if err != nil {
 					return err
 				}
@@ -257,33 +403,29 @@ func (cs *compilationState) processStatement(statement Statement) error {
 				}
 
 				cs.block.Style.Size = size
-
-				break
 			case uint8:
 				cs.block.Style.Size = value
-
-				break
 			default:
 				return tokenErrorInfo(statement.token, compilation, "Font size attribute must be an integer")
 			}
 		default:
 			return tokenErrorInfo(statement.token, compilation, "Unrecognized attribute")
 		}
+	case MacroDecl:
+		macroDef := statement.data.(MacroDeclaration)
 
-		break
-	case MacroAssignment:
-		macroDefinition := statement.data.(MacroStatement)
-		cs.macros[macroDefinition.name] = macroDefinition.statements
-
-		break
+		if err := cs.scope.declareMacro(statement.token, macroDef.name, macroDef.statements); err != nil {
+			return err
+		}
 	case MacroCall:
-		macroInvocation := statement.data.(MacroInvocation)
-		macro, ok := cs.macros[macroInvocation.reference]
-		if !ok {
-			return tokenErrorInfo(statement.token, compilation, "Macro not defined")
+		macroCall := statement.data.(MacroInvocation)
+
+		statements, err := cs.scope.getMacro(statement.token, macroCall.reference)
+		if err != nil {
+			return err
 		}
 
-		for _, statement := range macro {
+		for _, statement := range statements {
 			if err := cs.processStatement(statement); err != nil {
 				return err
 			}
@@ -293,28 +435,8 @@ func (cs *compilationState) processStatement(statement Statement) error {
 	return nil
 }
 
-func (cs *compilationState) dereferenceVariable(token Token, name string) (interface{}, error) {
-	if reservedNames[name] {
-		return nil, tokenErrorInfo(token, compilation, "cannot dereference a reserved name")
-	}
-
-	value, ok := cs.variables[name]
-	if !ok {
-		return nil, tokenErrorInfo(token, compilation, "variable must be initialized before dereference")
-	}
-
-	return value.value, nil
-}
-
 func (cs *compilationState) finalizeCompilation() types.Show {
-	cs.slide.Blocks = append(cs.slide.Blocks, cs.block)
-	cs.show.Slides = append(cs.show.Slides, cs.slide)
 	return cs.show
-}
-
-type variableValue struct {
-	isMutable bool
-	value     interface{}
 }
 
 func justificationFromLiteral(token Token, value interface{}) (types.Justification, error) {
